@@ -170,7 +170,7 @@ class Future(WrappedKey):
         self.key = key
         self._cleared = False
         tkey = stringify(key)
-        self.client = client or Client.current()
+        self._client = client or Client.current()
         self.client._inc_ref(tkey)
         self._generation = self.client.generation
 
@@ -195,6 +195,10 @@ class Future(WrappedKey):
                 pass
             else:
                 handler(key=key)
+
+    @property
+    def client(self):
+        return self._client or Client.current()
 
     @property
     def executor(self):
@@ -361,15 +365,11 @@ class Future(WrappedKey):
                 pass  # Shutting down, add_callback may be None
 
     def __getstate__(self):
-        return self.key, self.client.scheduler.address
+        return self.key
 
-    def __setstate__(self, state):
-        key, address = state
-        try:
-            c = Client.current(allow_global=False)
-        except ValueError:
-            c = get_client(address)
-        Future.__init__(self, key, c)
+    def __setstate__(self, key):
+        Future.__init__(self, key)
+        c = self.client
         c._send_to_scheduler(
             {
                 "op": "update-graph",
